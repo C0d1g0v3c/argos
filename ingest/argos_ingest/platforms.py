@@ -36,7 +36,7 @@ class RateLimitedClient:
         self._client = httpx.Client(
             base_url=base_url,
             timeout=30,
-            headers={"User-Agent": "argos-research/0.1 (medición académica; contacto en el repo)"},
+            headers={"User-Agent": "argos-research/0.1 (medicion academica; contacto en el repo)"},
         )
         self._min_interval = min_interval or settings.min_request_interval
         self._last_request = 0.0
