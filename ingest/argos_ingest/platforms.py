@@ -54,13 +54,22 @@ class RateLimitedClient:
 class BybitCopyTrading:
     """Leaderboard de copy trading de Bybit.
 
-    TODO: confirmar endpoint y forma de la respuesta contra la web real.
-    La página pública del leaderboard usa una API interna JSON; capturar
-    la request desde las DevTools del navegador y ajustar aquí.
+    Endpoint verificado 2026-08-09 (capturado con sesión de navegador):
+      GET https://www.bybit.com/x-api/fapi/beehive/public/v1/common/dynamic-leader-list
+          ?pageNo=1&pageSize=50&userTag=&dataDuration=DATA_DURATION_NINETY_DAY
+          &leaderTag=&code=&leaderLevel=
+    Responde retCode=0 con result.leaderDetails[]; el id estable del líder
+    es `leaderMark`. totalCount ~7700 líderes.
+
+    LIMITACIÓN: el WAF (Akamai) responde 403 a clientes HTTP directos,
+    incluso con UA honesto. La adquisición se hace desde contexto de
+    navegador y se guarda como captura JSON en data/; el freeze consume
+    esa captura vía `freeze_cohort --from-json`. Este cliente directo se
+    conserva por si el WAF cambia de política o aparece API oficial.
     """
 
-    BASE_URL = "https://api2.bybit.com"
-    LEADERBOARD_PATH = "/fapi/beehive/public/v1/common/dynamic-leader-list"
+    BASE_URL = "https://www.bybit.com"
+    LEADERBOARD_PATH = "/x-api/fapi/beehive/public/v1/common/dynamic-leader-list"
 
     def __init__(self):
         self.http = RateLimitedClient(self.BASE_URL)
