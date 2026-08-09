@@ -9,3 +9,6 @@ venv/
 pgdata/
 *.log
 .DS_Store
+
+# Datos: capturas crudas de evidencia se versionan; artefactos derivados no
+dashboard/argos_dashboard.html

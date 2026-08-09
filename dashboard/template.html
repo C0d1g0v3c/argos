@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Argos — Contrafactual del cohorte</title>
+<style>
+  /* Tema Cerberos: oscuro comprometido. Paleta de datos validada (dark). */
+  :root {
+    color-scheme: dark;
+    --plane: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;   /* slot 1 dark, validado */
+    --accent: #e66767;     /* slot 8 dark — rojo Cerberos, solo chrome */
+    --warning: #fab219;    /* status, con ícono+texto siempre */
+    --good: #0ca30c;
+  }
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    background: var(--plane);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.45;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  header.site { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  .logo { font-size: 26px; font-weight: 800; letter-spacing: 3px; }
+  .logo .paw { color: var(--accent); }
+  .brand-sub { color: var(--muted); font-size: 13px; }
+  .meta { color: var(--ink-2); font-size: 13px; margin-bottom: 18px; }
+  .meta code { color: var(--muted); font-size: 12px; }
+
+  .banner {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 20px;
+    font-size: 13.5px; color: var(--ink-2);
+  }
+  .banner .ico { font-size: 18px; line-height: 1.2; }
+  .banner strong { color: var(--warning); }
+
+  .controls {
+    display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-end;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;
+  }
+  .ctl { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+  .ctl input[type="number"], .ctl select {
+    background: var(--plane); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 10px; font-size: 14px; min-width: 120px;
+    font-variant-numeric: tabular-nums;
+  }
+  .ctl input[type="range"] { accent-color: var(--series-1); min-width: 180px; }
+  .ctl .rv { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .tile {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .tile .lbl { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .tile .val { font-size: 26px; font-weight: 700; }
+  .tile .sub { font-size: 12px; color: var(--ink-2); margin-top: 3px; }
+  .tile.hero { grid-column: 1 / -1; }
+  .tile.hero .val { font-size: 40px; }
+  .delta-up { color: var(--good); }
+  .delta-down { color: var(--accent); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .card .sub { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+  .chart-scroll { overflow-x: auto; }
+  svg text { font-family: inherit; }
+
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: #242423; border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 11px; font-size: 12.5px; color: var(--ink-2);
+    box-shadow: 0 4px 18px rgba(0,0,0,0.5); max-width: 260px;
+  }
+  .tooltip .tt-name { color: var(--ink); font-weight: 600; margin-bottom: 3px; }
+  .tooltip .num { font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; }
+  th:hover { color: var(--ink-2); }
+  td:first-child { color: var(--muted); }
+  .table-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+
+  .exp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 10px; }
+  .exp-item .lbl { font-size: 12px; color: var(--muted); }
+  .exp-item .val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  pre.cmd {
+    background: var(--plane); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-size: 12.5px; color: var(--ink-2); overflow-x: auto;
+  }
+  footer { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  footer code { font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site">
+    <div class="logo"><span class="paw">◆</span> ARGOS</div>
+    <div class="brand-sub">Cerberos Security · vigilancia conductual</div>
+  </header>
+  <div class="meta" id="meta"></div>
+
+  <div class="banner">
+    <div class="ico">⚠️</div>
+    <div>
+      <strong>Contrafactual, no backtest.</strong> Los ROI de esta página son los que
+      <em>Bybit reporta</em> en su leaderboard al momento del freeze: no están auditados, tienen
+      sesgo de supervivencia (los que quebraron ya no aparecen) y no descuentan fricción ni
+      latencia de copia — que es exactamente lo que el experimento de calibración va a medir.
+      El falsification audit (Fase 02) todavía no corre. Esta gráfica muestra la promesa de la
+      plataforma, no una expectativa de rendimiento.
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="ctl">Capital inicial (MXN)
+      <input type="number" id="capital" value="500" min="1" step="100">
+    </div>
+    <div class="ctl">Repartido entre
+      <select id="topn">
+        <option value="5">Top 5</option>
+        <option value="10" selected>Top 10</option>
+        <option value="25">Top 25</option>
+        <option value="50">Los 50</option>
+      </select>
+    </div>
+    <div class="ctl">Fricción supuesta (por medir)
+      <input type="range" id="friction" min="0" max="20" step="0.5" value="0">
+      <span class="rv" id="frictionv">0.0% del retorno</span>
+    </div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile hero">
+      <div class="lbl">Capital hipotético hoy — si hubieras entrado hace 90 días, según lo reportado</div>
+      <div class="val" id="hero-val">—</div>
+      <div class="sub" id="hero-sub">—</div>
+    </div>
+    <div class="tile"><div class="lbl">Mediana ROI 90d</div><div class="val" id="t-roi">—</div><div class="sub">reportado</div></div>
+    <div class="tile"><div class="lbl">Mediana drawdown 90d</div><div class="val" id="t-dd">—</div><div class="sub">reportado</div></div>
+    <div class="tile"><div class="lbl">Mediana Sharpe 90d</div><div class="val" id="t-sh">—</div><div class="sub">reportado</div></div>
+    <div class="tile"><div class="lbl">Líderes en pérdida</div><div class="val" id="t-neg">—</div><div class="sub">ROI 90d &lt; 0</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Top 15 por capital final hipotético</h2>
+    <div class="sub">Cada barra: tu parte del capital × (1 + ROI 90d reportado), menos la fricción del control. Pasa el cursor para el detalle.</div>
+    <div class="chart-scroll"><div id="bars"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Mapa riesgo–retorno del cohorte congelado</h2>
+    <div class="sub">Los 50 líderes: drawdown máximo 90d (x) contra ROI 90d (y), ambos reportados. Arriba-izquierda es la esquina que promete; la vigilancia dirá quién la habita con trampa.</div>
+    <div class="chart-scroll"><div id="scatter"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Experimento de calibración — los $500 reales</h2>
+    <div class="sub">Lo único que tocará capital. Manual por diseño: la métrica es la latencia entre el fill del líder y el tuyo.</div>
+    <div class="exp-grid" id="exp"></div>
+    <pre class="cmd">cd ingest
+.venv\Scripts\python.exe -m argos_ingest.record_fill</pre>
+  </div>
+
+  <div class="card">
+    <h2>Cohorte completo</h2>
+    <div class="sub">Clic en un encabezado para ordenar. Fuente: metrics_at_freeze (evidencia inmutable).</div>
+    <div class="table-scroll"><table id="tbl"></table></div>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<div class="tooltip" id="tt"></div>
+
+<script>
+const DATA = __ARGOS_DATA__;
+
+const fmtMXN = n => "$" + n.toLocaleString("es-MX", {maximumFractionDigits: 0}) + " MXN";
+const fmtPct = n => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+const median = a => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2; };
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+const tt = document.getElementById("tt");
+function showTT(html, ev) {
+  tt.innerHTML = html;
+  tt.style.display = "block";
+  const pad = 14, w = tt.offsetWidth, h = tt.offsetHeight;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - pad;
+  if (y + h > innerHeight - 8) y = ev.clientY - h - pad;
+  tt.style.left = x + "px"; tt.style.top = y + "px";
+}
+function hideTT() { tt.style.display = "none"; }
+
+function leaderTT(d, extra) {
+  return `<div class="tt-name">#${d.rank} ${esc(d.name)}</div>` + (extra || "") +
+    `<div class="num">ROI 90d: ${fmtPct(d.roi)}</div>` +
+    `<div class="num">Drawdown 90d: ${d.dd.toFixed(2)}%</div>` +
+    `<div class="num">Win rate: ${d.winrate.toFixed(1)}% · Sharpe: ${d.sharpe.toFixed(2)}</div>` +
+    `<div class="num">Seguidores: ${d.followers.toLocaleString("es-MX")}</div>`;
+}
+
+// ---- meta / footer / tiles estáticos ----
+document.getElementById("meta").innerHTML =
+  `Cohorte congelado el <strong>${DATA.frozen_at}</strong> · ${DATA.leaders.length} líderes (Bybit, perpetuos USDT) · ` +
+  `criterio: top 50 por ganancia de seguidores, 90 días · <code>hash ${DATA.hash.slice(0, 16)}…</code>`;
+document.getElementById("foot").innerHTML =
+  `Evidencia: <code>${DATA.source_file}</code> capturada ${DATA.fetched_at} · snapshot <code>${DATA.snapshot_id}</code> · ` +
+  `composition_hash <code>${DATA.hash}</code> · Generado ${DATA.generated_at} · ` +
+  `Regenerar: <code>python dashboard/build_dashboard.py</code>`;
+
+const rois = DATA.leaders.map(d => d.roi);
+document.getElementById("t-roi").textContent = fmtPct(median(rois));
+document.getElementById("t-dd").textContent = median(DATA.leaders.map(d => d.dd)).toFixed(2) + "%";
+document.getElementById("t-sh").textContent = median(DATA.leaders.map(d => d.sharpe)).toFixed(2);
+document.getElementById("t-neg").textContent = rois.filter(r => r < 0).length + " / " + rois.length;
+
+// ---- experimento ----
+const exp = DATA.experiment;
+document.getElementById("exp").innerHTML = `
+  <div class="exp-item"><div class="lbl">Fills registrados</div><div class="val">${exp.fills}/20</div></div>
+  <div class="exp-item"><div class="lbl">Días transcurridos</div><div class="val">${exp.days ?? "—"}/30</div></div>
+  <div class="exp-item"><div class="lbl">P&amp;L realizado</div><div class="val">$${exp.realized_mxn.toFixed(2)}</div></div>
+  <div class="exp-item"><div class="lbl">Estado</div><div class="val">${exp.fills === 0 ? "Sin arrancar" : "En curso"}</div></div>`;
+
+// ---- modelo contrafactual ----
+function computed() {
+  const capital = Math.max(1, +document.getElementById("capital").value || 500);
+  const topn = +document.getElementById("topn").value;
+  const friction = +document.getElementById("friction").value / 100;
+  const sel = DATA.leaders.slice(0, topn);
+  const per = capital / topn;
+  const rows = sel.map(d => ({...d, final: per * (1 + (d.roi / 100) * (1 - friction))}));
+  const total = rows.reduce((a, r) => a + r.final, 0);
+  return {capital, topn, friction, rows, total};
+}
+
+function renderHero(m) {
+  const el = document.getElementById("hero-val");
+  const delta = (m.total / m.capital - 1) * 100;
+  const cls = delta >= 0 ? "delta-up" : "delta-down";
+  el.innerHTML = `${fmtMXN(m.total)} <span class="${cls}" style="font-size:22px">${fmtPct(delta)}</span>`;
+  document.getElementById("hero-sub").textContent =
+    `${fmtMXN(m.capital)} repartidos en partes iguales entre los top ${m.topn} del cohorte` +
+    (m.friction > 0 ? `, descontando ${(m.friction * 100).toFixed(1)}% del retorno por fricción supuesta` : ", sin descontar fricción") +
+    ". Número reportado por la plataforma, no verificado.";
+}
+
+// ---- barras horizontales ----
+function renderBars(m) {
+  const rows = [...m.rows].sort((a, b) => b.final - a.final).slice(0, 15);
+  const W = 1000, rowH = 30, padL = 190, padR = 90, padT = 8;
+  const H = padT + rows.length * rowH + 26;
+  const maxV = Math.max(...rows.map(r => r.final));
+  const x = v => padL + (W - padL - padR) * (v / maxV);
+  const per = m.capital / m.topn;
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:720px" role="img" aria-label="Top 15 por capital final hipotético">`;
+  // gridlines + eje
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) {
+    const v = maxV * i / ticks, gx = x(v);
+    s += `<line x1="${gx}" y1="${padT}" x2="${gx}" y2="${H - 24}" stroke="var(--grid)" stroke-width="1"/>`;
+    s += `<text x="${gx}" y="${H - 8}" fill="var(--muted)" font-size="11" text-anchor="middle" style="font-variant-numeric:tabular-nums">$${Math.round(v).toLocaleString("es-MX")}</text>`;
+  }
+  // línea de referencia: tu parte inicial
+  const bx = x(per);
+  s += `<line x1="${bx}" y1="${padT}" x2="${bx}" y2="${H - 24}" stroke="var(--baseline)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  s += `<text x="${bx + 4}" y="${padT + 10}" fill="var(--muted)" font-size="10.5">parte inicial</text>`;
+
+  rows.forEach((r, i) => {
+    const y = padT + i * rowH + 5, h = rowH - 10, bw = Math.max(1, x(r.final) - padL);
+    s += `<text x="${padL - 8}" y="${y + h / 2 + 4}" fill="var(--ink-2)" font-size="12.5" text-anchor="end">${esc(r.name.length > 24 ? r.name.slice(0, 23) + "…" : r.name)}</text>`;
+    s += `<rect data-i="${r.rank}" x="${padL}" y="${y}" width="${bw}" height="${h}" fill="var(--series-1)" rx="4" ry="4"/>`;
+    s += `<text x="${padL + bw + 6}" y="${y + h / 2 + 4}" fill="var(--ink-2)" font-size="12" style="font-variant-numeric:tabular-nums">$${Math.round(r.final).toLocaleString("es-MX")}</text>`;
+  });
+  s += `</svg>`;
+  const host = document.getElementById("bars");
+  host.innerHTML = s;
+
+  host.querySelectorAll("rect[data-i]").forEach(rect => {
+    const d = m.rows.find(r => r.rank === +rect.dataset.i);
+    rect.addEventListener("mousemove", ev => showTT(
+      leaderTT(d, `<div class="num">Final hipotético: <strong>$${Math.round(d.final).toLocaleString("es-MX")} MXN</strong> (de $${Math.round(per).toLocaleString("es-MX")})</div>`), ev));
+    rect.addEventListener("mouseleave", hideTT);
+  });
+}
+
+// ---- scatter riesgo-retorno ----
+function renderScatter(m) {
+  const pts = DATA.leaders;
+  const W = 1000, H = 430, padL = 64, padR = 20, padT = 16, padB = 44;
+  const xs = pts.map(p => p.dd), ys = pts.map(p => p.roi);
+  const xMax = Math.max(...xs) * 1.06 || 1;
+  const yMin = Math.min(0, Math.min(...ys)), yMax = Math.max(...ys) * 1.06;
+  const x = v => padL + (W - padL - padR) * (v / xMax);
+  const y = v => padT + (H - padT - padB) * (1 - (v - yMin) / (yMax - yMin));
+  const inSel = new Set(m.rows.map(r => r.rank));
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:720px" role="img" aria-label="Mapa riesgo-retorno">`;
+  for (let i = 0; i <= 5; i++) {
+    const vy = yMin + (yMax - yMin) * i / 5, gy = y(vy);
+    s += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="var(--grid)" stroke-width="1"/>`;
+    s += `<text x="${padL - 8}" y="${gy + 4}" fill="var(--muted)" font-size="11" text-anchor="end" style="font-variant-numeric:tabular-nums">${Math.round(vy)}%</text>`;
+  }
+  for (let i = 0; i <= 5; i++) {
+    const vx = xMax * i / 5, gx = x(vx);
+    s += `<line x1="${gx}" y1="${padT}" x2="${gx}" y2="${H - padB}" stroke="var(--grid)" stroke-width="1"/>`;
+    s += `<text x="${gx}" y="${H - padB + 16}" fill="var(--muted)" font-size="11" text-anchor="middle" style="font-variant-numeric:tabular-nums">${vx.toFixed(0)}%</text>`;
+  }
+  if (yMin < 0) s += `<line x1="${padL}" y1="${y(0)}" x2="${W - padR}" y2="${y(0)}" stroke="var(--baseline)" stroke-width="1.5"/>`;
+  s += `<text x="${(padL + W - padR) / 2}" y="${H - 6}" fill="var(--muted)" font-size="11.5" text-anchor="middle">Drawdown máximo 90d (reportado)</text>`;
+  s += `<text x="14" y="${(padT + H - padB) / 2}" fill="var(--muted)" font-size="11.5" text-anchor="middle" transform="rotate(-90 14 ${(padT + H - padB) / 2})">ROI 90d (reportado)</text>`;
+
+  // leyenda: en la selección / fuera
+  s += `<circle cx="${W - 190}" cy="${padT + 6}" r="5" fill="var(--series-1)"/><text x="${W - 180}" y="${padT + 10}" fill="var(--ink-2)" font-size="11.5">en tu selección</text>`;
+  s += `<circle cx="${W - 92}" cy="${padT + 6}" r="5" fill="var(--muted)" fill-opacity="0.55"/><text x="${W - 82}" y="${padT + 10}" fill="var(--ink-2)" font-size="11.5">fuera</text>`;
+
+  pts.forEach(p => {
+    const sel = inSel.has(p.rank);
+    s += `<circle data-i="${p.rank}" cx="${x(p.dd)}" cy="${y(p.roi)}" r="${sel ? 6 : 4.5}" ` +
+         `fill="${sel ? "var(--series-1)" : "var(--muted)"}" fill-opacity="${sel ? 0.95 : 0.5}" ` +
+         `stroke="var(--surface)" stroke-width="2" style="cursor:default"/>`;
+  });
+  s += `</svg>`;
+  const host = document.getElementById("scatter");
+  host.innerHTML = s;
+
+  host.querySelectorAll("circle[data-i]").forEach(c => {
+    const d = pts.find(p => p.rank === +c.dataset.i);
+    c.addEventListener("mousemove", ev => showTT(leaderTT(d), ev));
+    c.addEventListener("mouseleave", hideTT);
+  });
+}
+
+// ---- tabla ----
+let sortKey = "rank", sortDir = 1;
+function renderTable(m) {
+  const per = m.capital / m.topn;
+  const cols = [
+    ["rank", "#"], ["name", "Líder"], ["roi", "ROI 90d"], ["dd", "Drawdown"],
+    ["winrate", "Win rate"], ["sharpe", "Sharpe"], ["followers", "Seguidores"], ["final", "Final hipotético"],
+  ];
+  const rows = DATA.leaders.map(d => {
+    const r = m.rows.find(x => x.rank === d.rank);
+    return {...d, final: r ? r.final : null};
+  }).sort((a, b) => {
+    const va = a[sortKey], vb = b[sortKey];
+    if (va == null) return 1; if (vb == null) return -1;
+    return (typeof va === "string" ? va.localeCompare(vb) : va - vb) * sortDir;
+  });
+  let h = "<thead><tr>" + cols.map(([k, l]) =>
+    `<th data-k="${k}">${l}${sortKey === k ? (sortDir > 0 ? " ↑" : " ↓") : ""}</th>`).join("") + "</tr></thead><tbody>";
+  rows.forEach(d => {
+    h += `<tr><td>${d.rank}</td><td style="color:var(--ink)">${esc(d.name)}</td>` +
+      `<td>${fmtPct(d.roi)}</td><td>${d.dd.toFixed(2)}%</td><td>${d.winrate.toFixed(1)}%</td>` +
+      `<td>${d.sharpe.toFixed(2)}</td><td>${d.followers.toLocaleString("es-MX")}</td>` +
+      `<td>${d.final != null ? "$" + Math.round(d.final).toLocaleString("es-MX") : "—"}</td></tr>`;
+  });
+  h += "</tbody>";
+  const tbl = document.getElementById("tbl");
+  tbl.innerHTML = h;
+  tbl.querySelectorAll("th").forEach(th => th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = 1; }
+    renderTable(computed());
+  }));
+}
+
+// ---- orquestación ----
+function renderAll() {
+  const m = computed();
+  document.getElementById("frictionv").textContent = (m.friction * 100).toFixed(1) + "% del retorno";
+  renderHero(m); renderBars(m); renderScatter(m); renderTable(m);
+}
+["capital", "topn", "friction"].forEach(id =>
+  document.getElementById(id).addEventListener("input", renderAll));
+renderAll();
+</script>
+</body>
+</html>
