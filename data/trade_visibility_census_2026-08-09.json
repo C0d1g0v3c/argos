@@ -1,0 +1,16 @@
+{
+  "census_date": "2026-08-09T23:40Z",
+  "method": "GET /x-api/fapi/beehive/public/v1/common/leader-created-record por leaderMark, ventana 30 días, desde contexto de navegador con sesión",
+  "cohort_snapshot_id": "b8e11852-0478-4023-9a3a-6d520415a6f7",
+  "n_surveyed": 50,
+  "results": {
+    "openTradeInfoProtection_1_hard_hidden": 30,
+    "protection_0_but_zero_orders": 20,
+    "with_visible_trades_at_survey": 0
+  },
+  "endpoint_confirmed_functional": true,
+  "functional_evidence": "El líder de ejemplo GROWTRADE (fuera del cohorte, VjwDP1Ox+uNpW/U+81Sgqg==) devolvió 3 órdenes reales cerradas de BTCUSDT (isOpenOrder=false, entryPriceE8, closedPnlE8, createdAtE9) en la primera lectura, confirmando que el endpoint y el parser funcionan.",
+  "key_finding": "El cohorte (top 50 por ganancia de seguidores, 90d) no expone datos a nivel de trade públicamente. 30/50 protegen explícitamente (openTradeInfoProtection=1); los otros 20 no protegen pero devuelven 0 órdenes. Papai (rank 2, segundo request de la corrida — sin posibilidad de throttle temprano) ya mostraba prot=0/total=0, así que la ausencia no se explica solo por rate limiting.",
+  "throttling_observed": "Tras ~50 requests en ráfaga, incluso GROWTRADE (que sí tenía datos) pasó a devolver 0. El endpoint throttlea con volumen; cualquier ingesta debe ser gentil.",
+  "implication": "La tesis de vigilancia (Benford sobre precio×cantidad, roundedness, ciclos en grafo) requiere trades individuales. Con este cohorte no hay insumo. Decisión pendiente: re-congelar con un criterio que seleccione líderes de historial público, o cambiar la unidad de análisis."
+}

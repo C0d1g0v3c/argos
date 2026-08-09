@@ -36,7 +36,7 @@ def poll_once() -> int:
 
         for leader_id, platform_uid in members:
             try:
-                trades = platform.fetch_leader_trades(platform_uid)
+                raw = platform.fetch_leader_trades(platform_uid)
             except NotImplementedError:
                 print("fetch_leader_trades no está implementado aún para esta plataforma.", file=sys.stderr)
                 return 0
@@ -45,10 +45,14 @@ def poll_once() -> int:
                 traceback.print_exc()
                 continue
 
-            for t in trades:
-                t["leader_id"] = leader_id
-                db.insert_leader_trade(conn, t)
+            # Líderes con openTradeInfoProtection devuelven []: se saltan en silencio.
+            for item in raw:
+                trade = platform.parse_trade_record(item, leader_id)
+                db.insert_leader_trade(conn, trade)
                 inserted += 1
+
+            # Cortesía con el WAF: pausa entre líderes (el endpoint throttlea con ráfaga)
+            time.sleep(settings.min_request_interval)
         conn.commit()
     return inserted
 

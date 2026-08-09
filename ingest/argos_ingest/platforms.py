@@ -15,6 +15,8 @@ a la semana 3.
 
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from decimal import Decimal
 
 import httpx
 
@@ -100,9 +102,54 @@ class BybitCopyTrading:
             page += 1
         return entries
 
-    def fetch_leader_trades(self, platform_uid: str) -> list[dict]:
-        """Posiciones/trades visibles de un líder. TODO: endpoint real."""
-        raise NotImplementedError("Capturar endpoint de posiciones desde DevTools y implementarlo")
+    # Endpoint de trades por líder, verificado 2026-08-09:
+    #   GET /x-api/fapi/beehive/public/v1/common/leader-created-record
+    #       ?dayCycleType=DAY_CYCLE_TYPE_THIRTY_DAY&pageNo=1&pageSize=N&leaderMark=<enc>
+    # result.leaderOrderHistoryDetails[]: orderId, isOpenOrder, symbol, side,
+    #   leverageE2, sizeX, entryPriceE8, closedPnlE8, yieldRateE4, createdAtE9 (ns).
+    # result.openTradeInfoProtection == 1 → el líder oculta su historial: 0 filas.
+    TRADES_PATH = "/x-api/fapi/beehive/public/v1/common/leader-created-record"
+
+    @staticmethod
+    def parse_trade_record(item: dict, leader_id: int) -> dict:
+        """Mapea un leaderOrderHistoryDetails al shape de la tabla leader_trade."""
+        ts_ns = int(item["createdAtE9"])
+        return {
+            "ts": datetime.fromtimestamp(ts_ns / 1e9, tz=timezone.utc),
+            "leader_id": leader_id,
+            "trade_uid": str(item["orderId"]),
+            "symbol": item["symbol"],
+            "side": "long" if item["side"].lower() in ("buy", "long") else "short",
+            "entry_px": Decimal(item["entryPriceE8"]) / Decimal(10**8),
+            "exit_px": None,  # el endpoint no expone precio de salida directo
+            "closed_at": None if item.get("isOpenOrder") else None,
+            "notional_usd": None,  # sizeX está en contratos, no en USD directo
+            "leverage": Decimal(item["leverageE2"]) / Decimal(100),
+        }
+
+    def fetch_leader_trades(self, platform_uid: str, page_size: int = 50) -> list[dict]:
+        """Trades visibles de un líder (dict crudos del endpoint). El mapeo a
+        leader_trade lo hace parse_trade_record. Devuelve [] si el líder tiene
+        openTradeInfoProtection activo."""
+        collected: list[dict] = []
+        page = 1
+        while True:
+            resp = self.http.get(
+                self.TRADES_PATH,
+                params={
+                    "dayCycleType": "DAY_CYCLE_TYPE_THIRTY_DAY",
+                    "pageNo": page, "pageSize": page_size,
+                    "leaderMark": platform_uid,
+                },
+            )
+            result = resp.json().get("result", {})
+            rows = result.get("leaderOrderHistoryDetails", [])
+            collected.extend(rows)
+            total_pages = int(result.get("totalPageCount", 0))
+            if page >= total_pages or not rows:
+                break
+            page += 1
+        return collected
 
 
 def get_platform(name: str | None = None):
